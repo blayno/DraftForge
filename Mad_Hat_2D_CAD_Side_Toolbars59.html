@@ -40,10 +40,17 @@ header{height:72px;display:flex;align-items:center;gap:15px;padding:8px 16px;bac
 .tools{padding:8px 5px;display:flex;flex-direction:column;gap:5px}
 .tools button{font-size:12px;padding:10px 2px;min-height:42px}
 .tools button span{display:block;font-size:18px;margin-bottom:3px}
-.canvasWrap{display:flex;flex-direction:column;overflow:hidden;position:relative}
-.canvasTop{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:7px;background:#171f2d;border-bottom:1px solid var(--line)}
-.canvasTop button{padding:7px 9px}.canvasBottomTools{display:flex;align-items:center;gap:5px;flex:0 0 100%;width:100%}.canvasZoom{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-left:auto}
-.canvasArea{flex:1;min-height:0;position:relative;background:#111925}
+.canvasWrap{display:flex;flex-direction:column;overflow:hidden;position:relative;min-width:0}
+.canvasTop{position:absolute;right:10px;top:10px;z-index:10;display:flex;gap:5px;align-items:center;padding:0;background:transparent}
+.canvasZoom{display:flex;align-items:center;justify-content:flex-end;gap:5px;padding:6px;background:#171f2ddd;border:1px solid #34445b;border-radius:7px;backdrop-filter:blur(5px)}
+.canvasZoom button{padding:7px 10px;min-width:38px}
+.canvasStage{display:grid;grid-template-columns:112px minmax(0,1fr) 112px;gap:7px;flex:1;min-height:0;padding:7px;background:#111925}
+.canvasSideTools{display:flex;flex-direction:column;gap:6px;align-items:stretch;justify-content:center;padding:8px 6px;background:#171f2d;border:1px solid #303b4f;border-radius:7px;overflow-y:auto;z-index:2}
+.canvasSideTools button{width:100%;min-height:38px;padding:7px 5px;font-size:12px;white-space:normal;line-height:1.2}
+.canvasArea{min-width:0;min-height:0;position:relative;background:#111925;border:1px solid #34445b}
+.canvasFoot{flex:0 0 38px}
+@media(max-width:900px){.canvasStage{grid-template-columns:92px minmax(0,1fr) 92px;gap:5px;padding:5px}.canvasSideTools{padding:5px 4px}.canvasSideTools button{font-size:11px;padding:6px 3px;min-height:36px}.canvasZoom{padding:4px}.canvasZoom button{padding:6px 8px;min-width:32px}}
+@media(max-width:600px){.canvasStage{grid-template-columns:76px minmax(0,1fr) 76px}.canvasSideTools button{font-size:10px}}
 #brushCursor{position:absolute;display:none;z-index:3;box-sizing:border-box;pointer-events:none;transform:translate(-50%,-50%);border:2px solid #ff3030;background:rgba(255,40,40,.16);box-shadow:0 0 0 1px rgba(255,255,255,.55)}
 #brushCursor.round{border-radius:50%}
 #brushCursor.eraser{border-color:#f5f7fb;background:rgba(245,247,251,.16);box-shadow:0 0 0 1px rgba(16,20,29,.8)}
@@ -244,17 +251,25 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 </aside>
 
 <main class="panel canvasWrap">
-<div class="canvasTop">
-<button id="selectTool" class="active">↖ Select</button>
-<button id="deleteBtn">⌫ Delete</button>
-<button id="duplicateBtn">▣ Duplicate</button><button id="centerSelectionBtn" title="Center selected vectors on the buildplate">Center on plate</button>
-<button id="cutJoinBtn" title="Click a vector section between intersections to trim it">✂ Cut</button>
-<button id="joinBtn" title="Join the two selected open vectors at their nearest endpoints">Join</button>
-<button id="textCutJoinBtn" title="Combine selected converted text outline vectors">Text Cut &amp; Join</button>
-  <div class="canvasBottomTools"><button id="groupBtn">Group</button><button id="ungroupBtn">Ungroup</button><button id="textToVectorsBtn" title="Creates editable outlines from the displayed font, preserving letter shapes and counters.">Text to Vectors</button><button id="paintToOutlineBtn" title="Convert the painted area, including erased gaps, into editable outline vectors.">Paint to Outline</button><div class="canvasZoom"><button id="zoomOut">−</button><button id="zoomLabel">100%</button><button id="zoomIn">＋</button><button id="fitBtn2">Fit</button></div></div>
-
+<div class="canvasTop"><div class="canvasZoom"><button id="zoomOut" title="Zoom out">−</button><button id="zoomLabel">100%</button><button id="zoomIn" title="Zoom in">＋</button><button id="fitBtn2">Fit</button></div></div>
+<div class="canvasStage">
+ <div class="canvasSideTools canvasSideLeft" aria-label="Selection and editing actions">
+  <button id="selectTool" class="active">↖ Select</button>
+  <button id="deleteBtn">⌫ Delete</button>
+  <button id="duplicateBtn">▣ Duplicate</button>
+  <button id="centerSelectionBtn" title="Center selected vectors on the buildplate">Center on plate</button>
+  <button id="cutJoinBtn" title="Click a vector section between intersections to trim it">✂ Cut</button>
+  <button id="joinBtn" title="Join the two selected open vectors at their nearest endpoints">Join</button>
+  <button id="textCutJoinBtn" title="Combine selected converted text outline vectors">Text Cut &amp; Join</button>
+ </div>
+ <div class="canvasArea"><canvas id="canvas" width="1200" height="800"></canvas><div id="brushCursor" class="round" aria-hidden="true"></div></div>
+ <div class="canvasSideTools canvasSideRight" aria-label="Grouping and vector actions">
+  <button id="groupBtn">Group</button>
+  <button id="ungroupBtn">Ungroup</button>
+  <button id="textToVectorsBtn" title="Creates editable outlines from the displayed font, preserving letter shapes and counters.">Text to Vectors</button>
+  <button id="paintToOutlineBtn" title="Convert the painted area, including erased gaps, into editable outline vectors.">Paint to Outline</button>
+ </div>
 </div>
-<div class="canvasArea"><canvas id="canvas" width="1200" height="800"></canvas><div id="brushCursor" class="round" aria-hidden="true"></div></div>
 <div class="canvasFoot"><span id="canvasCoords">X: 0.0 · Y: 0.0 mm</span><span id="selectionInfo">Nothing selected</span><span id="canvasSize">180 × 180 mm</span></div>
 </main>
 
