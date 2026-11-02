@@ -944,10 +944,37 @@ $('projectInput').onchange=async e=>{
 
 $('saveBtn').onclick=saveProject;
 $('exportJson').onclick=saveProject;
-function saveProject(){
+async function saveProject(){
  const data={version:1,document:{width:docW(),height:docH()},shapes,layers,activeLayer,nextId,nextLayer};
- download(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'mad-hat-2d-cad-project.json');
- status('Editable project saved');
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+ const defaultName='mad-hat-2d-cad-project.json';
+
+ // Native Save As dialog: choose both the filename and destination folder.
+ if(window.showSaveFilePicker){
+  try{
+   const handle=await window.showSaveFilePicker({
+    suggestedName:defaultName,
+    types:[{description:'Mad Hat 2D CAD project',accept:{'application/json':['.json']}}]
+   });
+   const writable=await handle.createWritable();
+   await writable.write(blob);
+   await writable.close();
+   status(`Project saved as ${handle.name}`);
+   return;
+  }catch(err){
+   if(err&&err.name==='AbortError'){status('Save cancelled');return}
+   console.warn('Save As dialog unavailable; using browser download instead.',err);
+  }
+ }
+
+ // Fallback: allow renaming, then use the browser's normal download location.
+ const entered=prompt('Save project as (include .json):',defaultName);
+ if(entered===null){status('Save cancelled');return}
+ let filename=entered.trim();
+ if(!filename){alert('Please enter a file name.');return}
+ if(!/\\.json$/i.test(filename))filename+='.json';
+ download(blob,filename);
+ status(`Project download started: ${filename}. Choose the save location in your browser's download dialog or settings.`);
 }
 
 $('addLayer').onclick=()=>{
