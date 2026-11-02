@@ -282,6 +282,7 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <div class="row"><button id="addLayer">＋ Layer</button><button id="deleteLayer">Delete layer</button></div>
 <div class="row"><button id="layerUp">↑ Move up</button><button id="layerDown">↓ Move down</button></div>
 <button id="transferShapes" class="wide" type="button">Move selected shapes to active layer</button>
+<label class="checkbox" style="margin-top:12px"><input id="showAllVectors" type="checkbox" checked> Show all</label>
 </details>
 
 <details class="section settings-menu">
@@ -291,11 +292,8 @@ header{height:auto;min-height:65px;flex-wrap:wrap}
 <label class="fieldlabel">Name</label><input id="shapeName" type="text" style="width:100%">
 <div class="row"><label>X (mm)</label><input id="shapeX" type="number" step=".1"><label>Y (mm)</label><input id="shapeY" type="number" step=".1"></div>
 <div class="row"><label>W (mm)</label><input id="shapeW" type="number" min=".1" step=".1"><label>H (mm)</label><input id="shapeH" type="number" min=".1" step=".1"></div>
+<label class="checkbox"><input id="uniformScale" type="checkbox"> Uniform scale</label>
 
-
-<div class="row"><label class="checkbox"><input id="shapeVisible" type="checkbox" checked> Visible</label><label class="checkbox"><input id="showAllVectors" type="checkbox" checked> Show all</label></div>
-
-<button id="applyProps" class="wide primary">Apply properties</button>
 </div>
 </details>
 
@@ -679,7 +677,7 @@ function updateProps(){
  $('properties').classList.toggle('hidden',!has);
  $('noSelection').classList.toggle('hidden',has);
  if(!s)return;
- for(const [id,v] of [['shapeName',s.name],['shapeX',s.x],['shapeY',s.y],['shapeW',s.w],['shapeH',s.h],['shapeVisible',s.visible!==false]]){
+ for(const [id,v] of [['shapeName',s.name],['shapeX',s.x],['shapeY',s.y],['shapeW',s.w],['shapeH',s.h]]){
   if($(id).type==='checkbox')$(id).checked=v;else $(id).value=v;
  }
  if(s.type==='text'&&s.fontFamily)$('textFont').value=s.fontFamily;
@@ -826,7 +824,7 @@ canvas.addEventListener('pointermove',e=>{
  if(!drag&&drawing){const q=drawing.type==='line'?snapLinePoint(p):snap(p);if(drawing.centerOut){let rx=Math.abs(q.x-drawing.centerX),ry=Math.abs(q.y-drawing.centerY);if(e.shiftKey){const radius=Math.max(rx,ry);rx=radius;ry=radius}drawing.x=drawing.centerX-rx;drawing.y=drawing.centerY-ry;drawing.w=rx*2;drawing.h=ry*2}else{drawing.w=q.x-drawing.x;drawing.h=q.y-drawing.y}if(drawing.type==='freehand')drawing.points.push([q.x,q.y]);render();return}if(!drag)return;
  if(drag.kind==='pan'){pan.x=drag.px+(sc.x-drag.sx);pan.y=drag.py+(sc.y-drag.sy);render();return}if(drag.kind==='selectBox'){selectionBox.x2=p.x;selectionBox.y2=p.y;render();return}
   if(drag.kind==='moveGroup'){const dx=p.x-drag.sx,dy=p.y-drag.sy;if(dx||dy)drag.moved=true;for(const item of drag.items){const sh=shapeById(item.id);if(sh){sh.x=item.ox+dx;sh.y=item.oy+dy;if(item.points&&sh.type==='freehand')sh.points=item.points.map(v=>[v[0]+dx,v[1]+dy])}}render()}
-  if(drag.kind==='resizeSelection'){applySelectionResize(drag,p,e.shiftKey);render()}
+  if(drag.kind==='resizeSelection'){applySelectionResize(drag,p,e.shiftKey||$('uniformScale').checked);render()}
 });
 canvas.addEventListener('pointerup',()=>{
   if(drawing){
@@ -1127,18 +1125,59 @@ $('showAllVectors').onchange=()=>{
  const show=$('showAllVectors').checked;snapshot();shapes.forEach(sh=>sh.visible=show);if(show)layers.forEach(l=>l.visible=true);
  renderLayers();render();status(show?'All vectors shown':'All vectors hidden');
 };
-$('shapeVisible').onchange=()=>{
- const s=shapeById(selected);if(s){s.visible=$('shapeVisible').checked;renderLayers();render()}
-};
-$('applyProps').onclick=()=>{
+// Shape properties update as the user edits each field. Record one undo
+// state when an editing interaction begins, rather than one per keystroke.
+let propsEditStart=null,propsHistoryRecorded=false;
+$('properties').addEventListener('focusin',e=>{
+ if(!e.target.matches('input'))return;
  const s=shapeById(selected);if(!s)return;
- snapshot();s.name=$('shapeName').value||'Shape';
- for(const [k,id] of [['x','shapeX'],['y','shapeY'],['w','shapeW'],['h','shapeH']])s[k]=+$(id).value||0;
- s.w=Math.max(.1,s.w);s.h=Math.max(.1,s.h);
- 
- s.visible=$('shapeVisible').checked;
- renderLayers();updateProps();render();status('Shape properties updated');
-};
+ propsEditStart={id:s.id,x:s.x,y:s.y,w:s.w,h:s.h};
+ if(!propsHistoryRecorded){snapshot();propsHistoryRecorded=true}
+});
+$('properties').addEventListener('input',e=>{
+ const field=e.target;
+ if(!field.matches('input'))return;
+ const s=shapeById(selected);if(!s)return;
+ if(s.locked||layer(s.layer)?.locked){status('This shape or layer is locked');return}
+ if(!propsEditStart||propsEditStart.id!==s.id){
+  propsEditStart={id:s.id,x:s.x,y:s.y,w:s.w,h:s.h};
+  if(!propsHistoryRecorded){snapshot();propsHistoryRecorded=true}
+ }
+ if(field.id==='shapeName'){
+  s.name=field.value||'Shape';
+ }else if(field.id==='shapeX'||field.id==='shapeY'){
+  const value=field.value===''?0:Number(field.value);
+  if(Number.isFinite(value))s[field.id==='shapeX'?'x':'y']=value;
+ }else if(['shapeW','shapeH'].includes(field.id)){
+  const baseW=Math.max(.1,Math.abs(propsEditStart.w));
+  const baseH=Math.max(.1,Math.abs(propsEditStart.h));
+  const raw=Number(field.value);
+  if(!Number.isFinite(raw)||raw===0)return;
+  const value=Math.max(.1,Math.abs(raw));
+  if($('uniformScale').checked){
+   const factor=field.id==='shapeW'?value/baseW:value/baseH;
+   s.w=Math.sign(propsEditStart.w||1)*baseW*factor;
+   s.h=Math.sign(propsEditStart.h||1)*baseH*factor;
+   $('shapeW').value=Math.abs(s.w);
+   $('shapeH').value=Math.abs(s.h);
+  }else{
+   s[field.id==='shapeW'?'w':'h']=Math.sign(s[field.id==='shapeW'?'w':'h']||1)*value;
+  }
+ }
+ renderLayers();render();
+ status('Shape properties updated');
+});
+$('properties').addEventListener('change',e=>{
+ if(e.target.id==='uniformScale'){
+  // Toggling the option itself takes effect immediately on the next size edit.
+  return;
+ }
+});
+$('properties').addEventListener('focusout',e=>{
+ if(!e.relatedTarget||!$('properties').contains(e.relatedTarget)){
+  propsEditStart=null;propsHistoryRecorded=false;updateProps();
+ }
+});
 
 $('zoomIn').onclick=()=>zoomAt(lastZoomPoint,zoom*1.2);
 $('zoomOut').onclick=()=>zoomAt(lastZoomPoint,zoom/1.2);
